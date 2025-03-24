@@ -65,6 +65,7 @@ contract Token is ERC20, Ownable {
     }
 
     function mint(address to, uint256 amount) external onlyMinter {
+        require(totalSupply() + amount <= maxSupply, "Exceeds max supply");
         _mint(to, amount);
     }
 
