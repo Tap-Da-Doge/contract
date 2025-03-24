@@ -99,7 +99,7 @@ contract PointToToken is Ownable {
         require(manualAdmin[msg.sender], "Only manual admin can approve");
         require(amount > 0, "Invalid amount");
 
-        bytes32 hash = keccak256(abi.encodePacked(msg.sender, amount));
+        bytes32 hash = keccak256(abi.encodePacked(user, amount));
         bytes32 ethSignedMessageHash = hash.toEthSignedMessageHash();
 
         require(!usedSignatures[signature], "Signature already used");
@@ -108,12 +108,12 @@ contract PointToToken is Ownable {
         usedSignatures[signature] = true;
 
         uint256 currentDay = getCurrentDay();
-        userDailyClaimed[msg.sender][currentDay] += amount;
+        userDailyClaimed[user][currentDay] += amount;
         globalDailyClaimed[currentDay] += amount;
-        require(userDailyClaimed[msg.sender][currentDay] <= userDailyClaimLimit, "Withdrawal amount exceeds your daily limit");
+        require(userDailyClaimed[user][currentDay] <= userDailyClaimLimit, "Withdrawal amount exceeds your daily limit");
         require(globalDailyClaimed[currentDay] <= globalDailyClaimLimit, "Total daily withdrawal limit reached");
 
-        IMint(token).mint(msg.sender, amount);
+        IMint(token).mint(user, amount);
         emit ManualApproval(user, amount);
     }
 
