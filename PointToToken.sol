@@ -14,10 +14,12 @@ contract PointToToken is Ownable {
 
     address public treasury;
     address public token;
-    uint256 public fee; // 1% -> 10
+    uint256 public fee;
     uint256 public userDailyClaimLimit;
     uint256 public globalDailyClaimLimit;
     uint256 public signatureValidDuration;
+    uint256 public manualApproveThreshold;
+    uint256 public minClaimAmount;
 
     mapping(address => mapping(uint256 => uint256)) public userDailyClaimed;
     mapping(uint256 => uint256) public globalDailyClaimed;
@@ -27,13 +29,14 @@ contract PointToToken is Ownable {
     mapping(address => uint256) public lastNonce;
 
     event SetTreasury(address treasury);
-    event SetConfig(uint256 fee, uint256 userDailyClaimLimit, uint256 globalDailyClaimLimit, uint256 signatureValidDuration);
+    event SetConfig(uint256 fee, uint256 userDailyClaimLimit, uint256 globalDailyClaimLimit, uint256 signatureValidDuration, uint256 manualApproveThreshold, uint256 minClaimAmount);
     event SetGameSigner(address gameSigner, bool status);
     event SetManualAdmin(address manualAdmin, bool status);
     event PointConverted(address user, uint256 amount, uint256 nonce);
     event ManualApproval(address user, uint256 amount);
 
     constructor(address _treasury, address _token, uint256 _fee) {
+        require(_fee < 100,"Fee must not exceed 100%");
         treasury = _treasury;
         fee = _fee;
         token = _token;
@@ -45,12 +48,15 @@ contract PointToToken is Ownable {
         emit SetTreasury(treasury);
     }
 
-    function setConfig(uint256 _fee, uint256 _userDailyClaimLimit, uint256 _globalDailyClaimLimit, uint256 _signatureValidDuration) external onlyOwner {
+    function setConfig(uint256 _fee, uint256 _userDailyClaimLimit, uint256 _globalDailyClaimLimit, uint256 _signatureValidDuration, uint256 _manualApproveThreshold, uint256 _minClaimAmount) external onlyOwner {
+        require(_fee < 100,"Fee must not exceed 100%");
         if(_fee > 0) fee = _fee;
         if(_userDailyClaimLimit > 0) userDailyClaimLimit = _userDailyClaimLimit;
         if(_globalDailyClaimLimit > 0) globalDailyClaimLimit = _globalDailyClaimLimit;
         if(_signatureValidDuration > 0) signatureValidDuration = _signatureValidDuration;
-        emit SetConfig(fee, userDailyClaimLimit, globalDailyClaimLimit, signatureValidDuration);
+        if(_manualApproveThreshold > 0) manualApproveThreshold = _manualApproveThreshold;
+        if(_minClaimAmount > 0) minClaimAmount = _minClaimAmount;
+        emit SetConfig(fee, userDailyClaimLimit, globalDailyClaimLimit, signatureValidDuration, _manualApproveThreshold, _minClaimAmount);
     }
 
     function setGameSigner(address _gameSigner, bool status) external onlyOwner {
@@ -68,10 +74,10 @@ contract PointToToken is Ownable {
     function claim(
         uint256 amount, 
         uint256 timestamp,
-        uint256 nonce,  
+        uint256 nonce,
         bytes calldata signature
     ) external {
-        require(amount > 0, "Invalid amount");
+        require(amount > minClaimAmount, "Invalid amount");
         require(nonce > lastNonce[msg.sender], "Nonce already used");
         require(block.timestamp <= timestamp + signatureValidDuration, "Signature expired");
 
@@ -90,14 +96,13 @@ contract PointToToken is Ownable {
         require(userDailyClaimed[msg.sender][currentDay] <= userDailyClaimLimit, "Withdrawal amount exceeds your daily limit");
         require(globalDailyClaimed[currentDay] <= globalDailyClaimLimit, "Total daily withdrawal limit reached");
 
-        IMint(token).mint(msg.sender, amount);
-
+        _transferToken(msg.sender, amount);
         emit PointConverted(msg.sender, amount, nonce);
     }
 
     function manualApprove(address user, uint256 amount, bytes calldata signature) external {
         require(manualAdmin[msg.sender], "Only manual admin can approve");
-        require(amount > 0, "Invalid amount");
+        require(amount > manualApproveThreshold, "Invalid amount");
 
         bytes32 hash = keccak256(abi.encodePacked(user, amount));
         bytes32 ethSignedMessageHash = hash.toEthSignedMessageHash();
@@ -113,8 +118,15 @@ contract PointToToken is Ownable {
         require(userDailyClaimed[user][currentDay] <= userDailyClaimLimit, "Withdrawal amount exceeds your daily limit");
         require(globalDailyClaimed[currentDay] <= globalDailyClaimLimit, "Total daily withdrawal limit reached");
 
-        IMint(token).mint(user, amount);
+        _transferToken(user, amount);
         emit ManualApproval(user, amount);
+    }
+
+    function _transferToken(address user, uint256 amount) internal {
+        uint256 amountFee = amount * fee / 100;
+        uint256 amountTransfer = amount - amountFee;
+        if(amountFee > 0) IMint(token).mint(treasury, amountFee);
+        if(amountTransfer > 0) IMint(token).mint(user, amountTransfer);
     }
 
     function getCurrentDay() public view returns (uint256) {
