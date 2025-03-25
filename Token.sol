@@ -20,7 +20,7 @@ contract Token is ERC20, Ownable {
     uint256 public buyFee;
     uint256 public sellFee;
     uint256 public feeEndTime;
-    uint256 public constant FEE_DENOMINATOR = 1000;
+    uint256 public constant FEE_DENOMINATOR = 100;
     uint256 public maxSupply;
     mapping(address => bool) public pair;
     mapping(address => bool) public minter;
