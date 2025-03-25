@@ -12,16 +12,12 @@ interface IMint {
 contract INO is Ownable {
     using SafeERC20 for IERC20;
     address public nft;
-    address public usdt;
     address public treasury;
-    uint256 public priceUsdt;
     uint256 public priceBNB;
     uint256 private nonce = 0;
-    constructor(address _nft, address _usdt, address _treasury, uint256 _priceUsdt, uint256 _priceBNB) {
+    constructor(address _nft, address _treasury, uint256 _priceBNB) {
         nft = _nft;
-        usdt = _usdt;
         treasury = _treasury;
-        priceUsdt = _priceUsdt;
         priceBNB = _priceBNB;
     }
 
@@ -58,11 +54,6 @@ contract INO is Ownable {
         level.maxLevel8 = _level.maxLevel8;
         level.maxLevel9 = _level.maxLevel9;
         level.maxLevel10 = _level.maxLevel10;
-    }
-
-    function setPriceUsdt(uint256 _price) external onlyOwner() {
-        priceUsdt = _price;
-        emit SetPrice(_price, "usdt", block.timestamp);
     }
 
     function setPriceBNB(uint256 _price) external onlyOwner() {
